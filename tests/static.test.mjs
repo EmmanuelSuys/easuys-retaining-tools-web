@@ -39,6 +39,10 @@ test("frontend is configured for retaining domain and API", async () => {
   const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
   const css = await readFile(new URL("../styles.css", import.meta.url), "utf8");
   const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  const deployWorkflow = await readFile(
+    new URL("../.github/workflows/deploy-pages.yml", import.meta.url),
+    "utf8"
+  );
 
   assert.equal(cname.trim(), "retaining.easuys.com");
   assert.match(html, /EA Suys Retaining Tools/);
@@ -65,6 +69,13 @@ test("frontend is configured for retaining domain and API", async () => {
   assert.equal(TURNSTILE_SCRIPT_URL, "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit");
   assert.equal(packageJson.scripts.build, "tsc");
   assert.equal(packageJson.scripts["screenshots:render"], "npm run build && node scripts/render_screenshots.mjs");
+  assert.match(deployWorkflow, /name: Deploy GitHub Pages/);
+  assert.match(deployWorkflow, /branches:\s*\n\s*-\s*main/);
+  assert.match(deployWorkflow, /actions\/configure-pages@v5/);
+  assert.match(deployWorkflow, /actions\/upload-pages-artifact@v3/);
+  assert.match(deployWorkflow, /actions\/deploy-pages@v4/);
+  assert.match(deployWorkflow, /cp index\.html app\.js styles\.css CNAME README\.md page-dist\//);
+  assert.match(deployWorkflow, /cp -R docs\/screenshots page-dist\/docs\/screenshots/);
 });
 
 test("runAnalysis posts the project payload to the retaining API and returns parsed JSON", async () => {
