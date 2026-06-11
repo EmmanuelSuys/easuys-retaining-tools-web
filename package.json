@@ -1,0 +1,14 @@
+{
+  "name": "easuys-retaining-tools-web",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "npm run build && node --test tests/*.test.mjs",
+    "screenshots:render": "npm run build && node scripts/render_screenshots.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}

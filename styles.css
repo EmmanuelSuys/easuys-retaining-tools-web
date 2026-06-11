@@ -1,0 +1,489 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap");
+
+:root {
+  --bg: #f2eee5;
+  --bg-deep: #d6d4cb;
+  --panel: rgba(255, 251, 243, 0.9);
+  --ink: #182022;
+  --muted: #596265;
+  --accent: #0b6e4f;
+  --accent-deep: #114f3d;
+  --accent-soft: #d7efe5;
+  --soil: #9b6b43;
+  --steel: #3a596a;
+  --water: #2f8fda;
+  --line: rgba(24, 32, 34, 0.12);
+  --shadow: 0 22px 48px rgba(24, 32, 34, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at top left, rgba(11, 110, 79, 0.18), transparent 26rem),
+    radial-gradient(circle at top right, rgba(155, 107, 67, 0.16), transparent 22rem),
+    linear-gradient(180deg, var(--bg), var(--bg-deep));
+  font-family: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+}
+
+.shell {
+  width: min(1380px, calc(100vw - 2rem));
+  margin: 0 auto;
+  padding: 1.5rem 0 2rem;
+}
+
+.masthead {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.8fr);
+  gap: 1rem;
+  align-items: start;
+  margin-bottom: 1rem;
+}
+
+.masthead-copy,
+.masthead-meta,
+.panel {
+  border: 1px solid var(--line);
+  border-radius: 1.5rem;
+  background: var(--panel);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow);
+}
+
+.masthead-copy {
+  padding: 1.8rem 1.8rem 1.6rem;
+}
+
+.eyebrow,
+.panel-kicker,
+.meta-card span {
+  margin: 0 0 0.55rem;
+  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.masthead h1,
+.panel h2 {
+  margin: 0;
+  line-height: 1.03;
+  letter-spacing: -0.03em;
+}
+
+.masthead h1 {
+  max-width: 12ch;
+  font-size: clamp(2.4rem, 5vw, 4.5rem);
+}
+
+.lede,
+.panel-note,
+.result-status,
+.report-note {
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.hero-links {
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  margin-top: 1.25rem;
+}
+
+.hero-links a {
+  color: var(--accent-deep);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.masthead-meta {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+}
+
+.meta-card {
+  padding: 1rem;
+  border-radius: 1rem;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(215, 239, 229, 0.7));
+}
+
+.meta-card strong {
+  display: block;
+  font-size: 1.15rem;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: 1rem;
+}
+
+.panel {
+  padding: 1.2rem;
+}
+
+.panel-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.action-button,
+.secondary-button,
+.phase-select {
+  border-radius: 999px;
+  padding: 0.8rem 1rem;
+  font: inherit;
+}
+
+.action-button,
+.secondary-button {
+  cursor: pointer;
+  transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+
+.action-button {
+  border: 0;
+  background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+  color: white;
+}
+
+.secondary-button {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--ink);
+}
+
+.action-button:hover,
+.secondary-button:hover {
+  transform: translateY(-1px);
+}
+
+.action-button:hover {
+  box-shadow: 0 10px 22px rgba(11, 110, 79, 0.25);
+}
+
+.secondary-button:disabled {
+  cursor: default;
+  opacity: 0.52;
+  transform: none;
+}
+
+.phase-select {
+  min-width: 11rem;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.project-input {
+  width: 100%;
+  min-height: 34rem;
+  padding: 1rem;
+  border-radius: 1rem;
+  border: 1px solid var(--line);
+  background: #fdfbf6;
+  color: var(--ink);
+  font: 0.88rem/1.55 "IBM Plex Mono", "SFMono-Regular", monospace;
+  resize: vertical;
+}
+
+.quick-editor-shell {
+  margin-bottom: 0.9rem;
+}
+
+.quick-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding: 0.95rem 1rem;
+  border-radius: 1rem;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.quick-editor-field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.quick-editor-field span,
+.quick-editor-note {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.quick-editor-field input,
+.quick-editor-field select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  padding: 0.72rem 0.85rem;
+  background: #fdfbf6;
+  color: var(--ink);
+  font: inherit;
+}
+
+.quick-editor-note {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.quick-editor-actions {
+  display: flex;
+  gap: 0.55rem;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.quick-editor-actions .secondary-button {
+  padding: 0.65rem 0.9rem;
+}
+
+.geometry-shell {
+  margin-bottom: 0.9rem;
+}
+
+.geometry-svg,
+.plot-svg,
+.deformed-svg {
+  width: 100%;
+  display: block;
+  border-radius: 1rem;
+  border: 1px solid rgba(24, 32, 34, 0.06);
+}
+
+.snapshot-grid,
+.result-shell,
+.report-shell,
+.contact-shell {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.snapshot-card,
+.result-card,
+.reaction-row,
+.report-card,
+.contact-card-panel {
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.snapshot-card,
+.report-card,
+.contact-card-panel {
+  padding: 0.95rem 1rem;
+}
+
+.snapshot-card strong,
+.result-card h3,
+.report-card h3,
+.contact-card-panel h3 {
+  display: block;
+  margin: 0 0 0.35rem;
+}
+
+.snapshot-card p,
+.result-card p,
+.reaction-row p,
+.report-card p,
+.contact-card-panel p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.export-actions {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  margin: 0.9rem 0 1rem;
+}
+
+.result-card {
+  padding: 0.95rem 1rem 1rem;
+}
+
+.result-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.result-card-wide {
+  grid-column: 1 / -1;
+}
+
+.result-grid .result-card:first-child {
+  background: linear-gradient(145deg, rgba(215, 239, 229, 0.8), rgba(255, 255, 255, 0.85));
+}
+
+.plot-svg {
+  height: 12rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(242, 238, 229, 0.8)),
+    repeating-linear-gradient(
+      180deg,
+      transparent,
+      transparent 1.95rem,
+      rgba(24, 32, 34, 0.06) 1.95rem,
+      rgba(24, 32, 34, 0.06) 2rem
+    );
+}
+
+.deformed-svg {
+  max-width: 15rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(242, 238, 229, 0.8));
+}
+
+.plot-line {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.plot-line.displacement {
+  stroke: var(--accent);
+}
+
+.plot-line.moment {
+  stroke: var(--steel);
+}
+
+.plot-line.shear {
+  stroke: #8f3a3a;
+}
+
+.plot-line.pressure {
+  stroke: var(--soil);
+}
+
+.plot-line.water {
+  stroke: var(--water);
+}
+
+.reaction-list,
+.report-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.result-meta-list {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0.8rem 0 0;
+  padding-left: 1rem;
+  color: var(--muted);
+}
+
+.table-shell {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.reaction-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.9rem;
+  padding: 0.8rem 0.95rem;
+}
+
+.reaction-row strong {
+  display: block;
+}
+
+.contact-form {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 0.8rem;
+}
+
+.contact-field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.contact-field span,
+.contact-consent span {
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
+.contact-field input,
+.contact-field textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  padding: 0.8rem 0.9rem;
+  font: inherit;
+  background: #fdfbf6;
+  color: var(--ink);
+}
+
+.contact-field textarea {
+  min-height: 7rem;
+  resize: vertical;
+}
+
+.contact-consent {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.contact-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.contact-actions a {
+  color: var(--accent-deep);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.contact-turnstile {
+  min-height: 2.25rem;
+}
+
+.status-error {
+  color: #9b2226;
+}
+
+@media (max-width: 1180px) {
+  .workspace,
+  .masthead {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .result-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .project-input {
+    min-height: 24rem;
+  }
+
+  .quick-editor-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .shell {
+    width: min(100vw - 1rem, 1380px);
+  }
+}
