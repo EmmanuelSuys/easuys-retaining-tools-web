@@ -1,4 +1,4 @@
-export const API_BASE_URL = "https://easuys-retaining-tools-api.workers.dev";
+export const API_BASE_URL = "https://easuys-retaining-tools-api.yellow-violet-f185.workers.dev";
 export const ANALYSIS_ROUTE = "/calculate/retaining/flexible-wall-analysis";
 export const CONTACT_ENDPOINT = "/lead/study-request";
 export const TURNSTILE_SITE_KEY = "0x4AAAAAADYeVJCZgqihubKs";
@@ -118,6 +118,7 @@ export const SAMPLE_PROJECT = {
     ],
     design_options: {
         target_element_length_m: 0.5,
+        max_wall_displacement_mm: 30,
     },
 };
 export const SAMPLE_RESULT = {
@@ -164,6 +165,12 @@ export const SAMPLE_RESULT = {
     },
     design_checks: {
         overall_pass: true,
+        serviceability: {
+            assessed: true,
+            max_abs_displacement_mm: 16.4,
+            limit_mm: 30,
+            pass: true,
+        },
         wall: {
             wall_type: "steel_sheet_pile",
             governing_check: "bending",
@@ -433,6 +440,7 @@ export function buildInputSnapshot(project, phaseIndex = 0) {
         : "";
     const wallLengthSearch = wallLengthSearchForProject(project);
     const targetElementLengthM = targetElementLengthForProject(project);
+    const maxWallDisplacementMm = project.design_options?.max_wall_displacement_mm;
     const supportTypes = [...new Set(project.supports.map((item) => supportTypeLabel(item.type)))];
     const phase = activePhaseForProject(project, phaseIndex);
     const leftLayer = firstSoilLayerForSide(project, "left");
@@ -448,7 +456,7 @@ export function buildInputSnapshot(project, phaseIndex = 0) {
         },
         {
             title: "Design mode",
-            text: `${project.design_mode.toUpperCase()} · ${project.phases.length} phase(s) · target element length ${formatNumber(targetElementLengthM, 2)} m`,
+            text: `${project.design_mode.toUpperCase()} · ${project.phases.length} phase(s) · target element length ${formatNumber(targetElementLengthM, 2)} m · max wall displacement (project limit) ${Number.isFinite(maxWallDisplacementMm) ? `${formatNumber(maxWallDisplacementMm, 2)} mm` : "not declared"}`,
         },
         {
             title: "Selected phase",
@@ -1108,7 +1116,7 @@ export function buildQuickEditorHtml(project, phaseIndex = 0, focus = {}) {
       <div class="quick-editor-actions"><button type="button" class="secondary-button" data-qe-structure-action="support_add">Add support</button><button type="button" class="secondary-button" data-qe-structure-action="support_remove">Remove support</button></div>
       <label class="quick-editor-field"><span>Phase name</span><input data-qe-phase-name type="text" value="${escapeHtml(phase.name)}"></label>
       <div class="quick-editor-actions"><button type="button" class="secondary-button" data-qe-structure-action="phase_duplicate">Duplicate phase</button><button type="button" class="secondary-button" data-qe-structure-action="phase_remove">Remove phase</button></div>
-      <label class="quick-editor-field"><span>Wall type</span><select data-qe-wall-type><option value="steel_sheet_pile" ${project.wall_type === "steel_sheet_pile" ? "selected" : ""}>Steel sheet pile</option><option value="diaphragm_wall" ${project.wall_type === "diaphragm_wall" ? "selected" : ""}>Diaphragm wall</option></select></label>
+      <label class="quick-editor-field"><span>Wall type</span><select data-qe-wall-type><option value="steel_sheet_pile" ${project.wall_type === "steel_sheet_pile" ? "selected" : ""}>Steel sheet pile</option><option value="diaphragm_wall" ${project.wall_type === "diaphragm_wall" ? "selected" : ""} disabled>Diaphragm wall (validation pending)</option></select></label>
       <label class="quick-editor-field"><span>Design mode</span><select data-qe-design-mode><option value="classic" ${project.design_mode === "classic" ? "selected" : ""}>Classic</option><option value="ec7" ${project.design_mode === "ec7" ? "selected" : ""}>EC7</option></select></label>
       <label class="quick-editor-field"><span>Toe control</span><select data-qe-toe-mode><option value="fixed" ${toeControlMode === "fixed" ? "selected" : ""}>Fixed toe</option><option value="search" ${toeControlMode === "search" ? "selected" : ""}>Search length</option></select></label>
       <label class="quick-editor-field"><span>Top level</span><input data-qe-top-level type="number" step="0.1" value="${escapeHtml(project.wall_geometry.top_level_m)}"></label>
@@ -1118,6 +1126,7 @@ export function buildQuickEditorHtml(project, phaseIndex = 0, focus = {}) {
       <label class="quick-editor-field"><span>Search step</span><input data-qe-search-step type="number" step="0.1" min="0.1" value="${escapeHtml(wallLengthSearch?.step_m ?? 0.5)}"></label>
       <label class="quick-editor-field"><span>Max head displacement</span><input data-qe-search-max-disp type="number" step="0.1" value="${escapeHtml(wallLengthSearch?.max_head_displacement_mm ?? 60)}"></label>
       <label class="quick-editor-field"><span>Target element length</span><input data-qe-target-element-length type="number" step="0.05" min="0.05" value="${escapeHtml(targetElementLengthForProject(project))}"></label>
+      <label class="quick-editor-field"><span>Max wall displacement (project limit)</span><input data-qe-max-wall-displacement type="number" step="0.1" min="0.1" value="${escapeHtml(project.design_options?.max_wall_displacement_mm ?? "")}" placeholder="Required for public analysis"></label>
       <label class="quick-editor-field"><span>Segment label</span><input data-qe-segment-label type="text" value="${escapeHtml(selectedSegment?.label ?? "")}"></label>
       <label class="quick-editor-field"><span>Segment top</span><input data-qe-segment-top type="number" step="0.1" value="${escapeHtml(selectedSegment?.top_level_m ?? "")}"></label>
       <label class="quick-editor-field"><span>Segment bottom</span><input data-qe-segment-bottom type="number" step="0.1" value="${escapeHtml(selectedSegment?.bottom_level_m ?? "")}"></label>
@@ -1176,9 +1185,28 @@ export function buildQuickEditorHtml(project, phaseIndex = 0, focus = {}) {
       <label class="quick-editor-field"><span>Capacity</span><input data-qe-support-capacity type="number" step="1" value="${escapeHtml(selectedSupport?.capacity_kN_per_m ?? "")}"></label>
       <label class="quick-editor-field"><span>Point load</span><input data-qe-support-force type="number" step="1" value="${escapeHtml(selectedSupport?.force_kN_per_m ?? "")}"></label>
       <label class="quick-editor-field"><span>Applied moment</span><input data-qe-support-moment type="number" step="1" value="${escapeHtml(selectedSupport?.moment_kNm_per_m ?? "")}"></label>
-      <p class="quick-editor-note">Select a wall segment, left/right soil layer, support item, or phase to edit existing staged retaining data from the structured UI. The segment editor covers EI, cracked EI, cracking moment, direct moment/shear resistances, and ${project.wall_type === "steel_sheet_pile" ? "manual steel-section metadata" : "direct diaphragm section stiffness/cracking/resistance inputs"}; the phase editor covers naming, surface, excavation, groundwater, surcharge, and vertical wall load state; the left/right soil layers cover density, friction, cohesion, stiffness, coefficient overrides, and pore offsets; the support editor covers id, type, permanence by phase, stiffness/prestress/capacity, unilateral underwater concrete blocks, point loads, and applied moments; and the workspace now also exposes target element length plus returned discretization metadata. JSON remains available for direct editing and future branches.</p>
+      <p class="quick-editor-note">Select a wall segment, left/right soil layer, support item, or phase to edit existing staged retaining data from the structured UI. The segment editor covers EI, cracked EI, cracking moment, direct moment/shear resistances, and ${project.wall_type === "steel_sheet_pile" ? "manual steel-section metadata" : "direct diaphragm section stiffness/cracking/resistance inputs"}; the phase editor covers naming, surface, excavation, groundwater, surcharge, and vertical wall load state; the left/right soil layers cover density, friction, cohesion, stiffness, coefficient overrides, and pore offsets; the support editor covers id, type, permanence by phase, stiffness/prestress/capacity, unilateral underwater concrete blocks, point loads, and applied moments; and the workspace also exposes the required project-specific wall-displacement limit, target element length, and returned discretization metadata. JSON remains available for direct editing and future branches.</p>
     </div>
   `;
+}
+export function reconcileQuickEditorEventPatch(changedField, patch) {
+    const reconciled = { ...patch };
+    if (changedField === "top_level_m") {
+        delete reconciled.segment_top_level_m;
+    }
+    else if (changedField === "toe_level_m") {
+        delete reconciled.segment_bottom_level_m;
+    }
+    else if (changedField === "segment_top_level_m") {
+        delete reconciled.top_level_m;
+    }
+    else if (changedField === "segment_bottom_level_m") {
+        delete reconciled.toe_level_m;
+    }
+    else if (changedField === "design_mode") {
+        reconciled.gamma_m0 = defaultSteelGammaM0(reconciled.design_mode);
+    }
+    return reconciled;
 }
 export function applyQuickEditorPatch(project, phaseIndex, patch, focus = {}) {
     const nextProject = structuredClone(project);
@@ -1188,6 +1216,8 @@ export function applyQuickEditorPatch(project, phaseIndex, patch, focus = {}) {
         target_element_length_m: patch.target_element_length_m ??
             nextProject.design_options?.target_element_length_m ??
             0.5,
+        max_wall_displacement_mm: patch.max_wall_displacement_mm ??
+            nextProject.design_options?.max_wall_displacement_mm,
     };
     const nextWallLengthSearch = nextProject.design_options?.wall_length_search;
     nextProject.wall_type = patch.wall_type ?? nextProject.wall_type;
@@ -1497,6 +1527,27 @@ function formatSupportReactionAxialCell(item) {
         ? `${formatNumber(item.axial_force_kN_per_m, 2)} kN/m`
         : "n/a";
 }
+function assessmentStatus(value) {
+    if (value === true)
+        return "ASSESSED PASS";
+    if (value === false)
+        return "CHECK";
+    return "NOT ASSESSED";
+}
+function serviceabilityAssessmentStatus(serviceability) {
+    return serviceability?.assessed === true
+        ? assessmentStatus(serviceability.pass)
+        : "NOT ASSESSED";
+}
+function formatServiceabilityAssessment(serviceability) {
+    const maximum = Number.isFinite(serviceability?.max_abs_displacement_mm)
+        ? `${formatNumber(serviceability.max_abs_displacement_mm, 2)} mm maximum`
+        : "maximum displacement unavailable";
+    const limit = Number.isFinite(serviceability?.limit_mm)
+        ? `${formatNumber(serviceability.limit_mm, 2)} mm project limit`
+        : "project limit not declared";
+    return `${maximum} / ${limit} · ${serviceabilityAssessmentStatus(serviceability)}`;
+}
 function formatSupportReactionDepthCell(item) {
     return item?.depth_m === undefined ? "n/a" : `${formatNumber(item.depth_m, 2)} m`;
 }
@@ -1539,7 +1590,7 @@ function buildSupportCheckList(result) {
         return `<li>No capacity-based support design checks were triggered.</li>`;
     }
     return supportChecks.map((item) => `
-    <li>${escapeHtml(item.support_id)} (${escapeHtml(item.support_type ?? "support")}): demand/capacity ${escapeHtml(formatSupportCheckDemandCapacity(item))} · utilization ${formatNumber(item.utilization_ratio ?? 0, 2)} · governing phase ${escapeHtml(item.governing_phase ?? "n/a")} · ${item.pass === false ? "CHECK" : "PASS"}</li>
+    <li>${escapeHtml(item.support_id)} (${escapeHtml(item.support_type ?? "support")}): demand/capacity ${escapeHtml(formatSupportCheckDemandCapacity(item))} · utilization ${formatNumber(item.utilization_ratio ?? 0, 2)} · governing phase ${escapeHtml(item.governing_phase ?? "n/a")} · ${assessmentStatus(item.pass)}</li>
   `).join("");
 }
 function buildSupportCheckRows(result) {
@@ -1555,7 +1606,7 @@ function buildSupportCheckRows(result) {
       <td>${renderSupportCheckValueCell(item.capacity_kN_per_m, item.axial_capacity_kN_per_m)}</td>
       <td>${escapeHtml(formatNumber(item.utilization_ratio ?? 0, 2))}</td>
       <td>${escapeHtml(item.governing_phase ?? "n/a")}</td>
-      <td>${item.pass === false ? "CHECK" : "PASS"}</td>
+      <td>${assessmentStatus(item.pass)}</td>
     </tr>
   `).join("");
 }
@@ -1615,8 +1666,18 @@ function buildGlobalGoverningRows(result) {
 }
 function buildWallCheckRows(result) {
     const wallCheck = result?.design_checks?.wall;
+    const serviceability = result?.design_checks?.serviceability;
     if (!wallCheck) {
-        return `<tr><td colspan="2">No wall design-check metadata returned.</td></tr>`;
+        return [
+            ["Wall design check", "No wall design-check metadata returned."],
+            ["Displacement serviceability", formatServiceabilityAssessment(serviceability)],
+            ["Overall assessed checks", assessmentStatus(result?.design_checks?.overall_pass)],
+        ].map(([label, value]) => `
+      <tr>
+        <td>${escapeHtml(label)}</td>
+        <td>${escapeHtml(value)}</td>
+      </tr>
+    `).join("");
     }
     return [
         ["Wall type", (wallCheck.wall_type ?? "n/a").replaceAll("_", " ")],
@@ -1630,8 +1691,9 @@ function buildWallCheckRows(result) {
         ["Shear governing point", `${wallCheck.shear_governing_phase ?? "n/a"} · ${formatNumber(wallCheck.shear_governing_level_m ?? 0, 2)} m`],
         ["Shear utilization", formatNumber(wallCheck.shear_utilization ?? 0, 2)],
         ["Cracked stiffness state", wallCheck.cracked_stiffness_state ?? "n/a"],
-        ["Wall pass", wallCheck.pass === false ? "CHECK" : "PASS"],
-        ["Overall global pass", result?.design_checks?.overall_pass === true ? "PASS" : "CHECK"],
+        ["Wall assessment", assessmentStatus(wallCheck.pass)],
+        ["Displacement serviceability", formatServiceabilityAssessment(serviceability)],
+        ["Overall assessed checks", assessmentStatus(result?.design_checks?.overall_pass)],
     ].map(([label, value]) => `
     <tr>
       <td>${escapeHtml(label)}</td>
@@ -1672,7 +1734,8 @@ function buildResultProvenanceList(result) {
 }
 export function buildPhaseOverview(result, phaseIndex) {
     const phase = result.phases[phaseIndex];
-    const overallPass = result.design_checks?.overall_pass === true ? "PASS" : "CHECK";
+    const overallPass = assessmentStatus(result.design_checks?.overall_pass);
+    const serviceability = result.design_checks?.serviceability;
     const supportCheck = governingSupportCheck(result);
     const phaseSolverStatus = phase?.converged === false
         ? `Did not converge after ${phase?.iterations ?? "n/a"} iteration(s)`
@@ -1691,6 +1754,10 @@ export function buildPhaseOverview(result, phaseIndex) {
             text: `${formatNumber(phase.envelope.max_abs_plastic_offset_mm ?? 0, 2)} mm`,
         },
         {
+            title: "Displacement serviceability",
+            text: formatServiceabilityAssessment(serviceability),
+        },
+        {
             title: "Wall utilization",
             text: `${formatNumber(result.design_checks?.wall?.bending_utilization ?? 0, 2)} bending · ${formatNumber(result.design_checks?.wall?.shear_utilization ?? 0, 2)} shear`,
         },
@@ -1705,7 +1772,7 @@ export function buildPhaseOverview(result, phaseIndex) {
             text: phaseSolverStatus,
         },
         {
-            title: "Global status",
+            title: "Assessment status",
             text: `${overallPass} · ${result.design_checks?.wall?.governing_phase || phase.name}`,
         },
     ];
@@ -1717,6 +1784,7 @@ export function buildResultSummaryItems(result, phaseIndex = 0) {
     }
     const supportCheck = governingSupportCheck(result);
     const wallCheck = result?.design_checks?.wall;
+    const serviceability = result?.design_checks?.serviceability;
     const governing = result?.governing;
     const summary = [
         `Phase: ${phase.name}`,
@@ -1735,11 +1803,12 @@ export function buildResultSummaryItems(result, phaseIndex = 0) {
         `Wall bending utilization: ${formatNumber(result.design_checks?.wall?.bending_utilization ?? 0, 2)}`,
         `Wall shear demand/capacity: ${formatNumber(result.design_checks?.wall?.shear_demand_kN_per_m ?? 0, 2)} / ${formatNumber(result.design_checks?.wall?.shear_capacity_kN_per_m ?? 0, 2)} kN/m`,
         `Wall governing level: ${formatNumber(wallCheck?.governing_level_m ?? 0, 2)} m`,
-        `Wall pass: ${wallCheck?.pass === false ? "check" : "yes"}`,
+        `Wall assessment: ${assessmentStatus(wallCheck?.pass).toLowerCase()}`,
+        `Displacement serviceability: ${formatServiceabilityAssessment(serviceability).toLowerCase()}`,
         supportCheck
             ? `Governing support demand/capacity: ${formatSupportCheckDemandCapacity(supportCheck)} (${supportCheck.support_id} · ${supportCheck.governing_phase})`
             : "Governing support utilization: n/a",
-        `Overall pass: ${result.design_checks?.overall_pass === true ? "yes" : "check"}`,
+        `Overall assessed checks: ${assessmentStatus(result.design_checks?.overall_pass).toLowerCase()}`,
     ];
     if (result.search_evaluation) {
         summary.push(`Wall-length search selected toe: ${formatNumber(result.search_evaluation.selected_toe_level_m, 1)} m`, `Wall-length search stop reason: ${result.search_evaluation.stop_reason}`);
@@ -1913,6 +1982,7 @@ export function buildReportPreviewHtml(project, result, phaseIndex) {
         <li>Wall inclination: ${formatNumber(displayProject.wall_geometry.inclination_degrees ?? 0, 1)}°</li>
         <li>Phase vertical wall load: ${formatNumber(phase.normalized_vertical_line_load_kN_per_m ?? phase.vertical_line_load_kN_per_m ?? displayProject.phases[phaseIndex]?.vertical_line_load_kN_per_m ?? 0, 1)} kN/m</li>
         <li>Target element length: ${formatNumber(targetElementLengthForProject(displayProject), 2)} m</li>
+        <li>Max wall displacement (project limit): ${Number.isFinite(displayProject.design_options?.max_wall_displacement_mm) ? `${formatNumber(displayProject.design_options?.max_wall_displacement_mm, 2)} mm` : "not declared"}</li>
         <li>Toe control: ${wallLengthSearch ? `search selected ${formatNumber(wallLengthSearch.selected_toe_level_m, 1)} m after ${wallLengthSearch.trial_count} trial(s)` : `fixed toe ${formatNumber(displayProject.wall_geometry.toe_level_m, 1)} m`}</li>
         <li>Discretization: ${escapeHtml(buildDiscretizationSummary(result))}</li>
         <li>Global displacement range: ${formatNumber(governing?.min_displacement_mm ?? 0, 2)} to ${formatNumber(governing?.max_displacement_mm ?? phase.envelope.max_abs_displacement_mm, 2)} mm</li>
@@ -1971,7 +2041,7 @@ export function buildReportHtml(project, result, phaseIndex = 0, generatedAt = n
         "  <h1>EA Suys Retaining Wall Report</h1>",
         `  <p class="note">Generated ${escapeHtml(generatedAt.toISOString())}</p>`,
         "  <h2>Project</h2>",
-        `  <dl><div><dt>Wall type</dt><dd>${escapeHtml(displayProject.wall_type.replaceAll("_", " "))}</dd></div><div><dt>Design mode</dt><dd>${escapeHtml(displayProject.design_mode.toUpperCase())}</dd></div><div><dt>Selected phase</dt><dd>${escapeHtml(phase.name)}</dd></div><div><dt>Formula version</dt><dd>${escapeHtml(result.formula_version || "n/a")}</dd></div><div><dt>Wall inclination</dt><dd>${escapeHtml(formatNumber(displayProject.wall_geometry.inclination_degrees ?? 0, 1))}°</dd></div><div><dt>Vertical wall load</dt><dd>${escapeHtml(formatNumber(phase.normalized_vertical_line_load_kN_per_m ?? phase.vertical_line_load_kN_per_m ?? displayProject.phases[phaseIndex]?.vertical_line_load_kN_per_m ?? 0, 1))} kN/m</dd></div><div><dt>Target element length</dt><dd>${escapeHtml(formatNumber(targetElementLengthForProject(displayProject), 2))} m</dd></div><div><dt>${escapeHtml(wallSection.label)}</dt><dd>${escapeHtml(wallSection.value)}</dd></div><div><dt>Toe control</dt><dd>${escapeHtml(wallLengthSearch ? `Search selected ${formatNumber(wallLengthSearch.selected_toe_level_m, 1)} m (${wallLengthSearch.stop_reason})` : `Fixed toe ${formatNumber(displayProject.wall_geometry.toe_level_m, 1)} m`)}</dd></div></dl>`,
+        `  <dl><div><dt>Wall type</dt><dd>${escapeHtml(displayProject.wall_type.replaceAll("_", " "))}</dd></div><div><dt>Design mode</dt><dd>${escapeHtml(displayProject.design_mode.toUpperCase())}</dd></div><div><dt>Selected phase</dt><dd>${escapeHtml(phase.name)}</dd></div><div><dt>Formula version</dt><dd>${escapeHtml(result.formula_version || "n/a")}</dd></div><div><dt>Wall inclination</dt><dd>${escapeHtml(formatNumber(displayProject.wall_geometry.inclination_degrees ?? 0, 1))}°</dd></div><div><dt>Vertical wall load</dt><dd>${escapeHtml(formatNumber(phase.normalized_vertical_line_load_kN_per_m ?? phase.vertical_line_load_kN_per_m ?? displayProject.phases[phaseIndex]?.vertical_line_load_kN_per_m ?? 0, 1))} kN/m</dd></div><div><dt>Target element length</dt><dd>${escapeHtml(formatNumber(targetElementLengthForProject(displayProject), 2))} m</dd></div><div><dt>Max wall displacement (project limit)</dt><dd>${Number.isFinite(displayProject.design_options?.max_wall_displacement_mm) ? `${escapeHtml(formatNumber(displayProject.design_options?.max_wall_displacement_mm, 2))} mm` : "Not declared"}</dd></div><div><dt>${escapeHtml(wallSection.label)}</dt><dd>${escapeHtml(wallSection.value)}</dd></div><div><dt>Toe control</dt><dd>${escapeHtml(wallLengthSearch ? `Search selected ${formatNumber(wallLengthSearch.selected_toe_level_m, 1)} m (${wallLengthSearch.stop_reason})` : `Fixed toe ${formatNumber(displayProject.wall_geometry.toe_level_m, 1)} m`)}</dd></div></dl>`,
         "  <h2>Summary</h2>",
         `  <ul>${summary.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`,
         "  <h2>Global Governing Envelope</h2>",
@@ -2360,7 +2430,7 @@ function bootApp() {
                     }
                     return;
                 }
-                currentProject = applyQuickEditorPatch(currentProject, currentPreviewPhaseIndex, {
+                const editorPatch = {
                     phase_name: quickEditor.querySelector("[data-qe-phase-name]")?.value,
                     wall_type: quickEditor.querySelector("[data-qe-wall-type]")?.value,
                     design_mode: quickEditor.querySelector("[data-qe-design-mode]")?.value,
@@ -2372,6 +2442,7 @@ function bootApp() {
                     search_step_m: numberOrUndefined(quickEditor.querySelector("[data-qe-search-step]")?.value),
                     search_max_head_displacement_mm: numberOrUndefined(quickEditor.querySelector("[data-qe-search-max-disp]")?.value),
                     target_element_length_m: numberOrUndefined(quickEditor.querySelector("[data-qe-target-element-length]")?.value),
+                    max_wall_displacement_mm: numberOrUndefined(quickEditor.querySelector("[data-qe-max-wall-displacement]")?.value),
                     segment_label: quickEditor.querySelector("[data-qe-segment-label]")?.value,
                     segment_top_level_m: numberOrUndefined(quickEditor.querySelector("[data-qe-segment-top]")?.value),
                     segment_bottom_level_m: numberOrUndefined(quickEditor.querySelector("[data-qe-segment-bottom]")?.value),
@@ -2470,7 +2541,19 @@ function bootApp() {
                     support_force_kN_per_m: numberOrUndefined(quickEditor.querySelector("[data-qe-support-force]")?.value),
                     support_moment_kNm_per_m: numberOrUndefined(quickEditor.querySelector("[data-qe-support-moment]")?.value),
                     anchor_inclination_degrees: numberOrUndefined(quickEditor.querySelector("[data-qe-anchor-inclination]")?.value),
-                }, currentEditorFocus);
+                };
+                const changedField = field.matches("[data-qe-top-level]")
+                    ? "top_level_m"
+                    : field.matches("[data-qe-toe-level]")
+                        ? "toe_level_m"
+                        : field.matches("[data-qe-segment-top]")
+                            ? "segment_top_level_m"
+                            : field.matches("[data-qe-segment-bottom]")
+                                ? "segment_bottom_level_m"
+                                : field.matches("[data-qe-design-mode]")
+                                    ? "design_mode"
+                                    : "";
+                currentProject = applyQuickEditorPatch(currentProject, currentPreviewPhaseIndex, reconcileQuickEditorEventPatch(changedField, editorPatch), currentEditorFocus);
                 input.value = formatJson(currentProject);
                 renderPreview();
                 if (currentResult) {

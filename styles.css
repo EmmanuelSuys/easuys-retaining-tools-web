@@ -120,6 +120,21 @@ body {
   font-size: 1.15rem;
 }
 
+.validation-notice {
+  margin: 0 0 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #c78b20;
+  border-radius: 0.8rem;
+  background: #fff4d8;
+  color: #5a3a00;
+  line-height: 1.45;
+}
+
+.validation-notice strong {
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
 .workspace {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.85fr) minmax(0, 1.15fr);
