@@ -12,6 +12,7 @@ import {
   STEEL_SHEET_PILE_LIBRARY,
   applyQuickEditorStructureAction,
   applyQuickEditorPatch,
+  reconcileQuickEditorEventPatch,
   resolveAnalyzedProject,
   buildContactPanelHtml,
   buildResultDownloadText,
@@ -28,6 +29,7 @@ import {
   buildPlotPath,
   buildReportHtml,
   buildResultHtml,
+  buildResultSummaryItems,
   loadTurnstileScript,
   resetTurnstileLoaderForTests,
   runAnalysis,
@@ -46,6 +48,9 @@ test("frontend is configured for retaining domain and API", async () => {
 
   assert.equal(cname.trim(), "retaining.easuys.com");
   assert.match(html, /EA Suys Retaining Tools/);
+  assert.match(html, /name="robots" content="noindex,nofollow"/);
+  assert.match(html, /Engineering preview — benchmark validation pending/);
+  assert.match(html, /https:\/\/www\.easuys\.be\/tools\/index-en\.html/);
   assert.match(html, /data-project-input/);
   assert.match(html, /data-quick-editor/);
   assert.match(html, /data-run-analysis/);
@@ -63,7 +68,10 @@ test("frontend is configured for retaining domain and API", async () => {
   assert.match(css, /\.quick-editor-grid\s*{/);
   assert.match(css, /\.geometry-svg,/);
   assert.match(css, /\.plot-svg\s*{/);
-  assert.equal(API_BASE_URL, "https://easuys-retaining-tools-api.workers.dev");
+  assert.equal(
+    API_BASE_URL,
+    "https://easuys-retaining-tools-api.yellow-violet-f185.workers.dev"
+  );
   assert.equal(ANALYSIS_ROUTE, "/calculate/retaining/flexible-wall-analysis");
   assert.equal(CONTACT_ENDPOINT, "/lead/study-request");
   assert.equal(TURNSTILE_SCRIPT_URL, "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit");
@@ -76,6 +84,55 @@ test("frontend is configured for retaining domain and API", async () => {
   assert.match(deployWorkflow, /actions\/deploy-pages@v4/);
   assert.match(deployWorkflow, /cp index\.html app\.js styles\.css CNAME README\.md page-dist\//);
   assert.match(deployWorkflow, /cp -R docs\/screenshots page-dist\/docs\/screenshots/);
+});
+
+test("pull-request CI is bounded, read-only and cannot deploy", async () => {
+  const workflow = await readFile(
+    new URL("../.github/workflows/pr-ci.yml", import.meta.url),
+    "utf8"
+  );
+  const triggerBlock = workflow.split("permissions:", 1)[0];
+
+  assert.match(triggerBlock, /^on:\n  pull_request:\s*$/m);
+  assert.doesNotMatch(
+    triggerBlock,
+    /^  (push|pull_request_target|schedule|workflow_dispatch):/m
+  );
+  assert.match(workflow, /^permissions:\n  contents: read$/m);
+  assert.doesNotMatch(workflow, /^\s+[\w-]+:\s*write\s*$/m);
+  assert.match(workflow, /group: retaining-web-pr-\$\{\{ github\.event\.pull_request\.number \}\}/);
+  assert.match(workflow, /cancel-in-progress: true/);
+  assert.match(workflow, /runs-on: ubuntu-24\.04/);
+  assert.match(workflow, /timeout-minutes: 10/);
+  assert.match(workflow, /persist-credentials: false/);
+  assert.match(workflow, /node-version: 22/);
+  assert.match(workflow, /cache: npm/);
+  assert.match(workflow, /cache-dependency-path: package-lock\.json/);
+  assert.match(workflow, /npm ci --ignore-scripts --no-audit --no-fund/);
+  assert.match(workflow, /npm test/);
+
+  const actions = Object.fromEntries(
+    [...workflow.matchAll(/^\s+uses:\s*([^@\s]+)@([0-9a-f]{40})(?:\s|$)/gm)]
+      .map((match) => [match[1], match[2]])
+  );
+  assert.deepEqual(actions, {
+    "actions/checkout": "11bd71901bbe5b1630ceea73d27597364c9af683",
+    "actions/setup-node": "49933ea5288caeca8642d1e84afbd3f7d6820020",
+  });
+  assert.equal([...workflow.matchAll(/^\s+uses:/gm)].length, Object.keys(actions).length);
+
+  const lowered = workflow.toLowerCase();
+  for (const forbidden of [
+    "secret",
+    "artifact",
+    "pages",
+    "deploy",
+    "push",
+    "dispatch",
+    "pull_request_target",
+  ]) {
+    assert.doesNotMatch(lowered, new RegExp(forbidden));
+  }
 });
 
 test("runAnalysis posts the project payload to the retaining API and returns parsed JSON", async () => {
@@ -118,6 +175,7 @@ test("sample project exposes a dedicated retaining payload", () => {
   assert.equal(SAMPLE_PROJECT.phases[1].vertical_line_load_kN_per_m, 35);
   assert.equal(SAMPLE_PROJECT.supports[0].inclination_degrees, 15);
   assert.equal(SAMPLE_PROJECT.wall_geometry.segments[0].steel_section.library_section_id, "AZ_18");
+  assert.equal(SAMPLE_PROJECT.design_options.max_wall_displacement_mm, 30);
   assert.equal(STEEL_SHEET_PILE_LIBRARY.AZ_18.label, "AZ 18");
 
   const snapshot = buildInputSnapshot(SAMPLE_PROJECT, 1);
@@ -127,6 +185,7 @@ test("sample project exposes a dedicated retaining payload", () => {
   assert.match(snapshot[0].text, /AZ 18/);
   assert.match(snapshot[0].text, /EI 52000 kNm2\/m/);
   assert.match(snapshot[1].text, /target element length 0.50 m/);
+  assert.match(snapshot[1].text, /max wall displacement \(project limit\) 30.00 mm/);
   assert.match(snapshot[2].text, /Excavate left side to -4.0 m/);
   assert.match(snapshot[2].text, /surface L\/R 0.0 \/ 0.0 m/);
   assert.match(snapshot[2].text, /excavation L\/R -4.0 \/ 0.0 m/);
@@ -152,6 +211,11 @@ test("sample project exposes a dedicated retaining payload", () => {
   assert.match(buildQuickEditorHtml(SAMPLE_PROJECT, 1), /Toe control/);
   assert.match(buildQuickEditorHtml(SAMPLE_PROJECT, 1), /Search start toe/);
   assert.match(buildQuickEditorHtml(SAMPLE_PROJECT, 1), /Target element length/);
+  assert.match(buildQuickEditorHtml(SAMPLE_PROJECT, 1), /Max wall displacement \(project limit\)/);
+  assert.match(
+    buildQuickEditorHtml(SAMPLE_PROJECT, 1),
+    /data-qe-max-wall-displacement[^>]*value="30"/,
+  );
   assert.match(buildQuickEditorHtml(SAMPLE_PROJECT, 1), /Segment label/);
   assert.match(buildQuickEditorHtml(SAMPLE_PROJECT, 1), /Segment top/);
   assert.match(buildQuickEditorHtml(SAMPLE_PROJECT, 1), /Segment EI/);
@@ -210,6 +274,7 @@ test("result helpers create options, plots and html fragments", () => {
     SAMPLE_RESULT.phases[2].sampled_results.map((item) => item.right_branch ?? item.branch_state.split("/")[1])
   );
   assert.equal(SAMPLE_RESULT.normalized_input.design_options.target_element_length_m, 0.5);
+  assert.equal(SAMPLE_RESULT.normalized_input.design_options.max_wall_displacement_mm, 30);
   assert.equal(SAMPLE_RESULT.governing.max_abs_moment_phase, "Deepen excavation to -5.0 m");
   assert.equal(SAMPLE_RESULT.governing.max_abs_rotation_mrad, 4);
   assert.equal(SAMPLE_RESULT.governing.max_abs_rotation_phase, "Deepen excavation to -5.0 m");
@@ -247,6 +312,12 @@ test("result helpers create options, plots and html fragments", () => {
   assert.equal(SAMPLE_RESULT.design_checks.wall.governing_phase, "Deepen excavation to -5.0 m");
   assert.equal(SAMPLE_RESULT.design_checks.wall.governing_level_m, -4);
   assert.equal(SAMPLE_RESULT.design_checks.wall.wall_type, "steel_sheet_pile");
+  assert.deepEqual(SAMPLE_RESULT.design_checks.serviceability, {
+    assessed: true,
+    max_abs_displacement_mm: 16.4,
+    limit_mm: 30,
+    pass: true,
+  });
   assert.deepEqual(buildPhaseOptions(SAMPLE_RESULT), [
     { index: 0, label: "1. Initial at-rest state" },
     { index: 1, label: "2. Excavate left side to -4.0 m" },
@@ -275,6 +346,8 @@ test("result helpers create options, plots and html fragments", () => {
   assert.match(buildResultHtml(SAMPLE_RESULT, 2), /182\.50 kNm\/m/);
   assert.match(buildResultHtml(SAMPLE_RESULT, 2), /Deepen excavation to -5\.0 m/);
   assert.match(buildResultHtml(SAMPLE_RESULT, 2), /Wall design check/);
+  assert.match(buildResultHtml(SAMPLE_RESULT, 2), /Displacement serviceability/);
+  assert.match(buildResultHtml(SAMPLE_RESULT, 2), /16\.40 mm maximum \/ 30\.00 mm project limit · ASSESSED PASS/);
   assert.match(buildResultHtml(SAMPLE_RESULT, 2), /Support design checks/);
   assert.match(buildResultHtml(SAMPLE_RESULT, 2), /Bending demand \/ capacity/);
   assert.match(buildResultHtml(SAMPLE_RESULT, 2), /182\.50 \/ 246\.62 kNm\/m/);
@@ -282,8 +355,8 @@ test("result helpers create options, plots and html fragments", () => {
   assert.match(buildResultHtml(SAMPLE_RESULT, 2), /axial 94\.62 \/ 150\.00 kN\/m/);
   assert.match(buildResultHtml(SAMPLE_RESULT, 2), /Governing level/);
   assert.match(buildResultHtml(SAMPLE_RESULT, 2), /-4\.00 m/);
-  assert.match(buildResultHtml(SAMPLE_RESULT, 2), /Overall global pass/);
-  assert.match(buildResultHtml(SAMPLE_RESULT, 2), />PASS</);
+  assert.match(buildResultHtml(SAMPLE_RESULT, 2), /Overall assessed checks/);
+  assert.match(buildResultHtml(SAMPLE_RESULT, 2), /ASSESSED PASS/);
   assert.match(buildResultHtml(SAMPLE_RESULT, 2), /Governing support/);
   assert.match(buildResultHtml(SAMPLE_RESULT, 2), /Support-force table/);
   assert.match(buildResultHtml(SAMPLE_RESULT, 2), /<th>Support<\/th><th>Type<\/th><th>Side<\/th><th>Depth<\/th><th>Horizontal force<\/th><th>Moment<\/th><th>Axial force<\/th><th>Utilization \/ State<\/th>/);
@@ -299,6 +372,8 @@ test("result helpers create options, plots and html fragments", () => {
   assert.match(buildReportPreviewHtml(SAMPLE_PROJECT, SAMPLE_RESULT, 2), /HTML report export/);
   assert.match(buildReportPreviewHtml(SAMPLE_PROJECT, SAMPLE_RESULT, 2), /Phase solver status: converged in 5 iteration\(s\)/);
   assert.match(buildReportPreviewHtml(SAMPLE_PROJECT, SAMPLE_RESULT, 2), /Target element length: 0.50 m/);
+  assert.match(buildReportPreviewHtml(SAMPLE_PROJECT, SAMPLE_RESULT, 2), /Max wall displacement \(project limit\): 30.00 mm/);
+  assert.match(buildReportPreviewHtml(SAMPLE_PROJECT, SAMPLE_RESULT, 2), /Displacement serviceability: 16\.40 mm maximum \/ 30\.00 mm project limit · assessed pass/);
   assert.match(buildReportPreviewHtml(SAMPLE_PROJECT, SAMPLE_RESULT, 2), /Selected-phase max plastic offset: 9\.10 mm/);
   assert.match(buildReportPreviewHtml(SAMPLE_PROJECT, SAMPLE_RESULT, 2), /Discretization: Target element length 0.50 m · 6 nodes · 5 elements/);
   assert.match(buildReportPreviewHtml(SAMPLE_PROJECT, SAMPLE_RESULT, 2), /Global displacement range: -1\.10 to 16\.40 mm/);
@@ -323,6 +398,8 @@ test("result helpers create options, plots and html fragments", () => {
   assert.match(buildReportHtml(SAMPLE_PROJECT, SAMPLE_RESULT, 2), /Wall-Length Search/);
   assert.match(buildReportHtml(SAMPLE_PROJECT, SAMPLE_RESULT, 2), /Discretization/);
   assert.match(buildReportHtml(SAMPLE_PROJECT, SAMPLE_RESULT, 2), /Target element length<\/dt><dd>0.50 m/);
+  assert.match(buildReportHtml(SAMPLE_PROJECT, SAMPLE_RESULT, 2), /Max wall displacement \(project limit\)<\/dt><dd>30.00 mm/);
+  assert.match(buildReportHtml(SAMPLE_PROJECT, SAMPLE_RESULT, 2), /Displacement serviceability: 16\.40 mm maximum \/ 30\.00 mm project limit · assessed pass/);
   assert.match(buildReportHtml(SAMPLE_PROJECT, SAMPLE_RESULT, 2), /<th>Node<\/th><th>Level<\/th><th>Next element<\/th>/);
   assert.match(buildReportHtml(SAMPLE_PROJECT, SAMPLE_RESULT, 2), /Selected toe: -9.5 m/);
   assert.match(buildReportHtml(SAMPLE_PROJECT, SAMPLE_RESULT, 2), /Geometry Preview/);
@@ -338,8 +415,8 @@ test("result helpers create options, plots and html fragments", () => {
   assert.match(buildReportHtml(SAMPLE_PROJECT, SAMPLE_RESULT, 2), /A1 \(anchor · right · 1\.60 m\): 91\.40 kN\/m · axial 94\.62 kN\/m · utilization 0\.63/);
   assert.match(buildReportHtml(SAMPLE_PROJECT, SAMPLE_RESULT, 2), /Governing level/);
   assert.match(buildReportHtml(SAMPLE_PROJECT, SAMPLE_RESULT, 2), /-4\.00 m/);
-  assert.match(buildReportHtml(SAMPLE_PROJECT, SAMPLE_RESULT, 2), /Wall pass/);
-  assert.match(buildReportHtml(SAMPLE_PROJECT, SAMPLE_RESULT, 2), />PASS</);
+  assert.match(buildReportHtml(SAMPLE_PROJECT, SAMPLE_RESULT, 2), /Wall assessment/);
+  assert.match(buildReportHtml(SAMPLE_PROJECT, SAMPLE_RESULT, 2), /ASSESSED PASS/);
   assert.match(buildReportHtml(SAMPLE_PROJECT, SAMPLE_RESULT, 2), /Governing phase/);
   assert.match(buildReportHtml(SAMPLE_PROJECT, SAMPLE_RESULT, 2), /Sampled numerical output/);
   assert.match(buildReportHtml(SAMPLE_PROJECT, SAMPLE_RESULT, 2), /<th>Level<\/th><th>Depth<\/th><th>Disp\.<\/th><th>Rot\.<\/th><th>Moment<\/th><th>Shear<\/th><th>Net p<\/th><th>Water p<\/th><th>Branch<\/th><th>Left<\/th><th>Right<\/th>/);
@@ -506,6 +583,30 @@ test("result summaries surface non-converged phase solver status", () => {
   assert.match(preview, /Phase solver status: did not converge after 40 iteration\(s\)/);
   assert.match(report, /Phase solver status: did not converge after 40 iteration\(s\)/);
   assert.match(mailto, /Phase solver status: did not converge after 40 iteration\(s\)/);
+});
+
+test("serviceability rendering distinguishes failed and unassessed checks", () => {
+  const failed = structuredClone(SAMPLE_RESULT);
+  failed.design_checks.serviceability.pass = false;
+  failed.design_checks.overall_pass = false;
+  assert.match(
+    buildResultHtml(failed, 2),
+    /16\.40 mm maximum \/ 30\.00 mm project limit · CHECK/,
+  );
+  assert.match(
+    buildResultSummaryItems(failed, 2).join("\n"),
+    /Displacement serviceability: 16\.40 mm maximum \/ 30\.00 mm project limit · check/,
+  );
+
+  const unassessed = structuredClone(SAMPLE_RESULT);
+  unassessed.design_checks.serviceability = {
+    assessed: false,
+    max_abs_displacement_mm: 16.4,
+  };
+  assert.match(
+    buildResultHtml(unassessed, 2),
+    /16\.40 mm maximum \/ project limit not declared · NOT ASSESSED/,
+  );
 });
 
 test("result rendering shows dedicated moment support output in kNm/m", () => {
@@ -778,6 +879,7 @@ test("quick editor patch updates section, load and geometry fields", () => {
     support_id: "A1R",
     support_inclination_degrees: 24,
     target_element_length_m: 0.3,
+    max_wall_displacement_mm: 24,
   });
 
   assert.equal(patched.phases[1].name, "Revised excavation stage");
@@ -819,6 +921,31 @@ test("quick editor patch updates section, load and geometry fields", () => {
   assert.equal(patched.supports[0].id, "A1R");
   assert.equal(patched.supports[0].inclination_degrees, 24);
   assert.equal(patched.design_options.target_element_length_m, 0.3);
+  assert.equal(patched.design_options.max_wall_displacement_mm, 24);
+});
+
+test("quick editor does not invent a serviceability limit for imported projects", () => {
+  const importedProject = structuredClone(SAMPLE_PROJECT);
+  delete importedProject.design_options.max_wall_displacement_mm;
+
+  assert.match(
+    buildQuickEditorHtml(importedProject, 1),
+    /data-qe-max-wall-displacement[^>]*value=""/,
+  );
+  assert.match(
+    buildInputSnapshot(importedProject, 1)[1].text,
+    /max wall displacement \(project limit\) not declared/,
+  );
+
+  const preserved = applyQuickEditorPatch(importedProject, 1, {
+    target_element_length_m: 0.4,
+  });
+  assert.equal(preserved.design_options.max_wall_displacement_mm, undefined);
+
+  const updated = applyQuickEditorPatch(importedProject, 1, {
+    max_wall_displacement_mm: 22.5,
+  });
+  assert.equal(updated.design_options.max_wall_displacement_mm, 22.5);
 });
 
 test("quick editor patch applies design-mode gamma M0 defaults when manual steel gamma is omitted", () => {
@@ -836,6 +963,32 @@ test("quick editor patch applies design-mode gamma M0 defaults when manual steel
   });
   assert.equal(ec7Patched.design_mode, "ec7");
   assert.equal(ec7Patched.wall_geometry.segments[0].steel_section.gamma_m0, 1.1);
+});
+
+test("quick editor event reconciliation preserves the field the user changed", () => {
+  const fullDomPatch = {
+    top_level_m: 1,
+    toe_level_m: -10,
+    segment_top_level_m: 0,
+    segment_bottom_level_m: -9,
+    design_mode: "ec7",
+    gamma_m0: 1,
+  };
+
+  const topPatch = reconcileQuickEditorEventPatch("top_level_m", fullDomPatch);
+  const topProject = applyQuickEditorPatch(SAMPLE_PROJECT, 0, topPatch);
+  assert.equal(topProject.wall_geometry.top_level_m, 1);
+  assert.equal(topProject.wall_geometry.segments[0].top_level_m, 1);
+
+  const toePatch = reconcileQuickEditorEventPatch("toe_level_m", fullDomPatch);
+  const toeProject = applyQuickEditorPatch(SAMPLE_PROJECT, 0, toePatch);
+  assert.equal(toeProject.wall_geometry.toe_level_m, -10);
+  assert.equal(toeProject.wall_geometry.segments.at(-1).bottom_level_m, -10);
+
+  const modePatch = reconcileQuickEditorEventPatch("design_mode", fullDomPatch);
+  const ec7Project = applyQuickEditorPatch(SAMPLE_PROJECT, 0, modePatch);
+  assert.equal(ec7Project.design_mode, "ec7");
+  assert.equal(ec7Project.wall_geometry.segments[0].steel_section.gamma_m0, 1.1);
 });
 
 test("quick editor can target non-first segment, soil layers and support items", () => {
